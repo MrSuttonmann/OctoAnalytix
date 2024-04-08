@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+    branches: main
+  workflow_dispatch:
+
+jobs:
+  build-api:
+    name: Build API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: npm ci
+        working-directory: octo-analytix-api
+      - name: Build
+        run: npx wrangler deploy octo-analytix-api --dry-run
+        working-directory: octo-analytix-api
+
+  build-app:
+    name: Build app
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: npm ci
+        working-directory: octo-analytix-app
+      - name: Build
+        run: npm run build
+        working-directory: octo-analytix-app
