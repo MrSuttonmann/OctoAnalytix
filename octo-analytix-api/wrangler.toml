@@ -1,3 +1,8 @@
 name = "octo-analytix-api"
 main = "src/index.ts"
 compatibility_date = "2024-04-05"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "octo-db"
+database_id = "23f490f6-9244-4047-ba89-e3018efaefa9"
