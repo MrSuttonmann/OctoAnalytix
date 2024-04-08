@@ -16,7 +16,7 @@ jobs:
         run: npm ci
         working-directory: octo-analytix-api
       - name: Build
-        run: npx wrangler deploy octo-analytix-api --dry-run
+        run: npx wrangler deploy --dry-run
         working-directory: octo-analytix-api
 
   build-app:
