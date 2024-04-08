@@ -1,2 +1,2 @@
 # OctoAnalytix
-An unofficial dashboard for Octopus Energy customers
+An ___unofficial___ dashboard for Octopus Energy UK customers.
