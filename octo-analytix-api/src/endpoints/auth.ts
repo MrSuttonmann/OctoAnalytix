@@ -1,8 +1,15 @@
 ﻿import { Email, OpenAPIRoute } from '@cloudflare/itty-router-openapi';
-import { CreateUserDto, User } from 'types';
 import { Env } from 'bindings';
-import { Context } from 'interfaces';
+import { Context, RequestBody } from 'interfaces';
 import { z } from 'zod';
+import { RegisterUserDto } from 'models/dtos/auth/register-user.dto';
+import { UserDto } from 'models/dtos/user.dto';
+import { UserSessionDto } from 'models/dtos/auth/user-session.dto';
+import { LoginUserDto } from 'models/dtos/auth/login-user.dto';
+
+function generateSalt(): string {
+  return crypto.randomUUID();
+}
 
 async function hashPassword(password: string, salt: string): Promise<string> {
   const utf8 = new TextEncoder().encode(`${salt}:${password}`);
@@ -13,18 +20,24 @@ async function hashPassword(password: string, salt: string): Promise<string> {
     .join('');
 }
 
+function generateToken(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(255)))
+    .map(bytes => bytes.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 export class AuthRegister extends OpenAPIRoute {
   static schema = {
     tags: ['Auth'],
     summary: 'Register user',
-    requestBody: CreateUserDto,
+    requestBody: RegisterUserDto,
     responses: {
       '200': {
         description: 'Successful response',
         schema: {
           success: Boolean, 
           result: {
-            user: User,
+            user: UserDto,
           }
         }
       },
@@ -38,13 +51,15 @@ export class AuthRegister extends OpenAPIRoute {
     }
   }
   
-  async handle(request: Request, env: Env, context: Context, data: Record<string, any>) {
+  async handle(request: Request, env: Env, context: Context, data: RequestBody<RegisterUserDto>) {
     try {
+      let salt = generateSalt();
       let user = await context.prisma.user.create({
         data: {
           name: data.body.name,
-          email: data.body.email,
-          password: await hashPassword(data.body.password, env.SALT_TOKEN),
+          email: data.body.emailAddress,
+          password: await hashPassword(data.body.password, salt),
+          salt: salt,
           octopus_api_key: data.body.octopusApiKey,
           octopus_acc_num: data.body.octopusAccountNumber
         }
@@ -76,20 +91,14 @@ export class AuthLogin extends OpenAPIRoute {
   static schema = {
     tags: ['Auth'],
     summary: 'Login user',
-    requestBody: {
-      email: new Email(),
-      password: z.string().min(8).max(30)
-    },
+    requestBody: LoginUserDto,
     responses: {
       '200': {
         description: 'Successful response',
         schema: {
           success: Boolean,
           result: {
-            session: {
-              token: String, 
-              expires_at: String
-            }
+            session: UserSessionDto
           }
         }
       },
@@ -103,18 +112,22 @@ export class AuthLogin extends OpenAPIRoute {
     }
   }
   
-  async handle(request: Request, env: Env, context: Context, data: Record<string, any>) {
+  async handle(request: Request, env: Env, context: Context, data: RequestBody<LoginUserDto>) {
     const user = await context.prisma.user.findUnique({
       where: {
-        email: data.body.email,
-        password: await hashPassword(data.body.password, env.SALT_TOKEN),
+        email: data.body.emailAddress
+      },
+      select: {
+        id: true,
+        salt: true,
+        password: true
       }
     });
     
-    if (!user) {
+    if (!user || user.password !== await hashPassword(data.body.password, user.salt)) {
       return new Response(JSON.stringify({
         success: false,
-        errors: 'Unknown user'
+        errors: 'Invalid password'
       }), {
         headers: {
           'content-type': 'application/json'
@@ -128,8 +141,8 @@ export class AuthLogin extends OpenAPIRoute {
     
     const session = await context.prisma.usersSession.create({
       data: {
-        userId: user.id,
-        token: await hashPassword(data.body.password, env.SALT_TOKEN),
+        user_id: user.id,
+        token: generateToken(),
         expires_at: expiration.getTime()
       }
     });
@@ -139,7 +152,7 @@ export class AuthLogin extends OpenAPIRoute {
       result: {
         session: {
           token: session.token,
-          expires_at: session?.expires_at
+          expires_at: session.expires_at
         }
       }
     }
@@ -166,7 +179,7 @@ export async function authenticateUser(request: Request, env: Env, context: Cont
         }
       },
       select: {
-        userId: true
+        user_id: true
       }
     });
 
@@ -181,6 +194,6 @@ export async function authenticateUser(request: Request, env: Env, context: Cont
         status: 401
       })
     }
-    env.user_uuid = session.userId;
+    env.user_uuid = session.user_id;
   }
 }

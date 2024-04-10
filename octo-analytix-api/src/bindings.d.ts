@@ -1,5 +1,4 @@
 ﻿export type Env = {
-  DB: D1Database, 
-  SALT_TOKEN: string,
+  DB: D1Database,
   user_uuid?: number
 };

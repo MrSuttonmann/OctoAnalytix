@@ -1,8 +1,7 @@
 import { OpenAPIRouter } from "@cloudflare/itty-router-openapi";
 import { Env } from 'types';
-import { D1QB } from 'workers-qb';
 import { Context } from 'interfaces';
-import { authenticateUser, AuthLogin, AuthRegister } from 'auth';
+import { authenticateUser, AuthLogin, AuthRegister } from 'endpoints/auth';
 import { PrismaD1 } from '@prisma/adapter-d1';
 import { PrismaClient } from '@prisma/client';
 
@@ -26,14 +25,14 @@ router.registry.registerComponent('securitySchemes', 'bearerAuth', {
 	scheme: 'bearer'
 });
 
-// Endpoints that don't require auth
+// Endpoints that don't require endpoints
 router.post("/api/auth/register", AuthRegister);
 router.post("/api/auth/login", AuthLogin);
 
 // Authentication middleware
 router.all('/api/*',  authenticateUser);
 
-// Endpoints that require auth
+// Endpoints that require endpoints
 
 // 404 for everything else
 router.all("*", () =>
