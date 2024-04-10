@@ -2,10 +2,7 @@
 import { CreateUserDto, User } from 'types';
 import { Env } from 'bindings';
 import { Context } from 'interfaces';
-import { ConflictTypes, Raw } from 'workers-qb';
-import { UserTable } from 'data/user.table';
 import { z } from 'zod';
-import { UsersSessionsTable } from 'data/users_sessions.table';
 
 async function hashPassword(password: string, salt: string): Promise<string> {
   const utf8 = new TextEncoder().encode(`${salt}:${password}`);
@@ -43,25 +40,21 @@ export class AuthRegister extends OpenAPIRoute {
   
   async handle(request: Request, env: Env, context: Context, data: Record<string, any>) {
     try {
-      let user = await context.qb.insert<UserTable>({
-        tableName: 'users', 
+      let user = await context.prisma.user.create({
         data: {
           name: data.body.name,
-          email: data.body.emailAddress, 
-          password: await hashPassword(data.body.password,  env.SALT_TOKEN),
+          email: data.body.email,
+          password: await hashPassword(data.body.password, env.SALT_TOKEN),
           octopus_api_key: data.body.octopusApiKey,
-          octopus_acc_num: data.body.octopusAccountNumber,
-          created_date: new Raw("CURRENT_TIMESTAMP"),
-        },
-        returning: '*',
-        onConflict: ConflictTypes.ABORT
-      }).execute();
+          octopus_acc_num: data.body.octopusAccountNumber
+        }
+      });
 
       return {
         success: true,
         result: {
-          email: user.results[0].email,
-          name: user.results[0].name
+          email: user.email,
+          name: user.name
         }
       }
       
@@ -111,22 +104,14 @@ export class AuthLogin extends OpenAPIRoute {
   }
   
   async handle(request: Request, env: Env, context: Context, data: Record<string, any>) {
-    const user = await context.qb.fetchOne<UserTable>({
-      tableName: 'users',
-      fields: '*',
+    const user = await context.prisma.user.findUnique({
       where: {
-        conditions: [
-          'email = ?1',
-          'password = ?2',
-        ],
-        params: [
-          data.body.email,
-          await hashPassword(data.body.password,  env.SALT_TOKEN),
-        ]
+        email: data.body.email,
+        password: await hashPassword(data.body.password, env.SALT_TOKEN),
       }
-    }).execute();
+    });
     
-    if (!user.results) {
+    if (!user) {
       return new Response(JSON.stringify({
         success: false,
         errors: 'Unknown user'
@@ -141,23 +126,20 @@ export class AuthLogin extends OpenAPIRoute {
     let expiration = new Date();
     expiration.setDate(expiration.getDate() + 7);
     
-    const session = await context.qb.insert<UsersSessionsTable>({
-      tableName: 'users_sessions',
+    const session = await context.prisma.usersSession.create({
       data: {
-        user_id: user.results.id,
-        token: await hashPassword((Math.random() + 1).toString(3),  env.SALT_TOKEN),
+        userId: user.id,
+        token: await hashPassword(data.body.password, env.SALT_TOKEN),
         expires_at: expiration.getTime()
-      },
-      returning: '*',
-      onConflict: ConflictTypes.ABORT
-    }).execute();
+      }
+    });
     
     return {
       success: true,
       result: {
         session: {
-          token: (session.results as UsersSessionsTable)?.token,
-          expires_at: (session.results as UsersSessionsTable)?.expires_at
+          token: session.token,
+          expires_at: session?.expires_at
         }
       }
     }
@@ -174,36 +156,31 @@ export function getBearer(request: Request): null | string {
 
 export async function authenticateUser(request: Request, env: Env, context: Context) {
   const token = getBearer(request);
-  let session;
   
   if (token) {
-    session = await context.qb.fetchOne<UsersSessionsTable>({
-      tableName: 'users_sessions',
-      fields: '*',
+    const session = await context.prisma.usersSession.findFirst({
       where: {
-        conditions: [
-          'token = ?1',
-          'expires_at > ?2'
-        ],
-        params: [
-          token, 
-          new Date().getTime()
-        ]
-      }
-    }).execute();
-  }
-  
-  if (!token || !session.results) {
-    return new Response(JSON.stringify({
-      success: false,
-      errors: "Authentication error"
-    }), {
-      headers: {
-        'content-type': 'application/json'
+        token: token,
+        expires_at: {
+          gt: new Date().getTime()
+        }
       },
-      status: 401
-    })
+      select: {
+        userId: true
+      }
+    });
+
+    if (!token || !session) {
+      return new Response(JSON.stringify({
+        success: false,
+        errors: "Authentication error"
+      }), {
+        headers: {
+          'content-type': 'application/json'
+        },
+        status: 401
+      })
+    }
+    env.user_uuid = session.userId;
   }
-  
-  env.user_uuid = session.results.user_uuid;
 }

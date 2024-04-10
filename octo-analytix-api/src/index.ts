@@ -3,6 +3,8 @@ import { Env } from 'types';
 import { D1QB } from 'workers-qb';
 import { Context } from 'interfaces';
 import { authenticateUser, AuthLogin, AuthRegister } from 'auth';
+import { PrismaD1 } from '@prisma/adapter-d1';
+import { PrismaClient } from '@prisma/client';
 
 export const router = OpenAPIRouter({
 	schema: {
@@ -44,14 +46,15 @@ router.all("*", () =>
 	)
 );
 
+
 export default {
 	fetch: async (request: Request, env: Env, executionContext: ExecutionContext) => {
 		// Inject query builder in every endpoint
-		const qb = new D1QB(env.DB);
-		qb.setDebugger(true);
+		const adapter = new PrismaD1(env.DB);
+		const prisma = new PrismaClient({adapter});
 		return router.handle(request, env, {
 			executionContext,
-			qb
+			prisma
 		} satisfies Context);
 	}
 };

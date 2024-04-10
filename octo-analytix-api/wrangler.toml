@@ -10,3 +10,6 @@ database_id = "23f490f6-9244-4047-ba89-e3018efaefa9"
 
 [dev]
 port = 8080
+
+[vars]
+SALT_TOKEN = "RzAtk?tTNDEcKFgVvxddNAUMuH?"

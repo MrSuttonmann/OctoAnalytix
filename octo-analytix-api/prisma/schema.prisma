@@ -1,0 +1,31 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              Int     @id @default(autoincrement())
+  email           String  @unique
+  password        String
+  name            String
+  octopus_api_key String
+  octopus_acc_num String
+  created_date    DateTime @default(now())
+  sessions        UsersSession[]
+}
+
+model UsersSession {
+  id          Int @id @default(autoincrement())
+  user        User @relation(references: [id], fields: [user_id])
+  user_id      Int
+  token       String
+  expires_at  Int
+}

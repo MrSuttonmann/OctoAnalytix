@@ -23,3 +23,14 @@ This is an example project made to be used as a quick start into building OpenAP
 1. Run `wrangler dev` to start a local instance of the API.
 2. Open `http://localhost:9000/` in your browser to see the Swagger interface where you can try the endpoints.
 3. Changes made in the `src/` folder will automatically trigger the server to reload, you only need to refresh the Swagger interface.
+
+### Database
+
+This project uses a Cloudflare D1 database, generated and interacted with through Prisma ORM.
+
+To create a migration after modifying the Prisma schema:
+
+1. Run `npx wrangler d1 migrations create octo-db <migration-name>`
+2. Run `npx prisma migrate diff --script --to-schema-datamodel ./prisma/schema.prisma -o ./migrations/<migration-file-name>.sql`
+3. Run `npx wrangler d1 migrations apply octo-db`
+4. Run `npx prisma generate`

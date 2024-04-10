@@ -1,22 +1,22 @@
--- Migration number: 0001 	 2024-04-08T14:41:32.942Z
-create table users
-(
-    id              integer primary key autoincrement,
-    email           text not null unique,
-    password        text not null,
-    name            text not null,
-    octopus_api_key text not null,
-    octopus_acc_num text not null,
-    created_date    date not null
+-- CreateTable
+CREATE TABLE "User" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "email" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "octopus_api_key" TEXT NOT NULL,
+    "octopus_acc_num" TEXT NOT NULL,
+    "created_date" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-create table users_sessions
-(
-    session_id  integer primary key autoincrement,
-    user_id     integer not null
-        constraint users_sessions_users_id_fk
-            references users
-            on update cascade on delete cascade,
-    token       text not null,
-    expires_at  integer not null
+-- CreateTable
+CREATE TABLE "UsersSession" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "user_id" INTEGER NOT NULL,
+    "token" TEXT NOT NULL,
+    "expires_at" INTEGER NOT NULL,
+    CONSTRAINT "UsersSession_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");

@@ -1,6 +1,6 @@
-﻿import { D1QB } from 'workers-qb';
+﻿import { PrismaClient } from '@prisma/client';
 
 export interface Context {
   executionContext: ExecutionContext;
-  qb: D1QB;
+  prisma: PrismaClient
 }
