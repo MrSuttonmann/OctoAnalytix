@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
+    <data-source source="LOCAL" name="octo-db.sqlite" uuid="81632817-fc75-4e2f-8a20-18b486f27dc6">
+      <driver-ref>sqlite.xerial</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
+      <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/octo-analytix-api/.wrangler/state/v3/d1/miniflare-D1DatabaseObject/b0d462e95a16876a814f68d8f169a75c75632c0ccda84c570302fa5d68ea6bc5.sqlite</jdbc-url>
+      <working-dir>$ProjectFileDir$</working-dir>
+    </data-source>
+  </component>
+</project>
