@@ -1,10 +1,14 @@
 ﻿import { z } from 'zod';
+import { UserPassword } from 'models/user/user-password';
+import { OctopusApiKey } from 'models/user/octopus-api-key';
+import { OctopusAccountNumber } from 'models/account/octopus-account-number';
+import { UserEmail } from 'models/user/user-email';
 
 export const RegisterUserDto = z.object({
   name: z.string(),
-  emailAddress: z.string().email('That doesn\'t look like a valid email address.'),
-  password: z.string().min(8).max(30),
-  octopusApiKey: z.string().regex(/^sk_live_[a-zA-Z0-9]{24}$/),
-  octopusAccountNumber: z.string().regex(/^(A-)([A-Z0-9]){8}$/),
-})
+  emailAddress: UserEmail,
+  password: UserPassword,
+  octopusApiKey: OctopusApiKey,
+  octopusAccountNumber: OctopusAccountNumber
+});
 export type RegisterUserDto = z.infer<typeof RegisterUserDto>;

@@ -1,0 +1,23 @@
+name = "octo-analytix-api"
+main = "src/index.ts"
+compatibility_date = "2024-04-05"
+compatibility_flags = ['nodejs_compat']
+
+[dev]
+port = 8080
+
+[[d1_databases]]
+binding = "DB"
+database_name = "octo-db"
+database_id = "23f490f6-9244-4047-ba89-e3018efaefa9"
+
+[[queues.producers]]
+binding = "POP_ACCOUNT_QUEUE"
+queue = "pop-account-queue"
+
+[[queues.consumers]]
+queue = "pop-account-queue"
+
+[vars]
+DATABASE_URL = "file:./dev.db"
+OCTOPUS_GRAPHQL_ENDPOINT = "https://api.octopus.energy/v1/graphql/"

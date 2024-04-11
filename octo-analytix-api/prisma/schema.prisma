@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["driverAdapters"]
 }
 
@@ -12,21 +12,59 @@ datasource db {
 }
 
 model User {
-  id              Int     @id @default(autoincrement())
-  email           String  @unique
+  id              Int             @id @default(autoincrement())
+  email           String          @unique
   password        String
   salt            String
   name            String
   octopus_api_key String
   octopus_acc_num String
-  created_date    DateTime @default(now())
+  created_date    DateTime        @default(now())
   sessions        UsersSession[]
+  octo_account    OctopusAccount?
 }
 
 model UsersSession {
-  id          Int @id @default(autoincrement())
-  user        User @relation(references: [id], fields: [user_id])
-  user_id      Int
-  token       String
-  expires_at  Int
+  id         Int    @id @default(autoincrement())
+  user       User   @relation(references: [id], fields: [user_id])
+  user_id    Int
+  token      String
+  expires_at Int
+}
+
+model OctopusAccount {
+  id         String     @id
+  user       User       @relation(references: [id], fields: [user_id])
+  user_id    Int        @unique
+  number     String
+  type       String
+  status     String
+  created_at DateTime
+  properties Property[]
+}
+
+model Property {
+  id                       String                   @id
+  octo_account             OctopusAccount           @relation(references: [id], fields: [octo_account_id])
+  octo_account_id          String
+  address                  String
+  wan_coverage             String
+  electricity_meter_points ElectricityMeterPoints[]
+  gas_meter_points         GasMeterPoints[]
+}
+
+model ElectricityMeterPoints {
+  id          String   @id
+  mpan        String   @unique
+  status      String
+  property    Property @relation(references: [id], fields: [property_id])
+  property_id String
+}
+
+model GasMeterPoints {
+  id          String   @id
+  mprn        String   @unique
+  status      String
+  property    Property @relation(references: [id], fields: [property_id])
+  property_id String
 }

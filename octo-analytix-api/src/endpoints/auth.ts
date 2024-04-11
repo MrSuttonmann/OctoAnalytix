@@ -1,30 +1,13 @@
-﻿import { Email, OpenAPIRoute } from '@cloudflare/itty-router-openapi';
+﻿import { OpenAPIRoute } from '@cloudflare/itty-router-openapi';
 import { Env } from 'bindings';
-import { Context, RequestBody } from 'interfaces';
-import { z } from 'zod';
-import { RegisterUserDto } from 'models/dtos/auth/register-user.dto';
-import { UserDto } from 'models/dtos/user.dto';
-import { UserSessionDto } from 'models/dtos/auth/user-session.dto';
+import { Context, RequestData } from 'interfaces';
 import { LoginUserDto } from 'models/dtos/auth/login-user.dto';
-
-function generateSalt(): string {
-  return crypto.randomUUID();
-}
-
-async function hashPassword(password: string, salt: string): Promise<string> {
-  const utf8 = new TextEncoder().encode(`${salt}:${password}`);
-  const hashBuffer = await crypto.subtle.digest({name: 'SHA-256'}, utf8);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray
-    .map(bytes => bytes.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-function generateToken(): string {
-  return Array.from(crypto.getRandomValues(new Uint8Array(255)))
-    .map(bytes => bytes.toString(16).padStart(2, '0'))
-    .join('');
-}
+import { UserService } from 'services/user.service';
+import { UserSessionService } from 'services/user-session.service';
+import { RegisterUserDto } from 'models/dtos/auth/register-user.dto';
+import { RegisterUserResultDto } from 'models/dtos/auth/register-user-result.dto';
+import { LoginUserResultDto } from 'models/dtos/auth/login-user-result.dto';
+import { ErrorResponseDto } from 'models/dtos/api-response';
 
 export class AuthRegister extends OpenAPIRoute {
   static schema = {
@@ -34,55 +17,47 @@ export class AuthRegister extends OpenAPIRoute {
     responses: {
       '200': {
         description: 'Successful response',
-        schema: {
-          success: Boolean, 
-          result: {
-            user: UserDto,
-          }
-        }
+        schema: RegisterUserResultDto,
       },
       '400': {
         description: 'Error',
-        schema: {
-          success: Boolean,
-          error: String
-        }
+        schema: ErrorResponseDto,
       }
     }
-  }
-  
-  async handle(request: Request, env: Env, context: Context, data: RequestBody<RegisterUserDto>) {
+  };
+
+  async handle(request: Request, env: Env, context: Context, data: RequestData<RegisterUserDto>) {
+    if (!data.body) throw new Error('Invalid body');
     try {
-      let salt = generateSalt();
-      let user = await context.prisma.user.create({
-        data: {
-          name: data.body.name,
-          email: data.body.emailAddress,
-          password: await hashPassword(data.body.password, salt),
-          salt: salt,
-          octopus_api_key: data.body.octopusApiKey,
-          octopus_acc_num: data.body.octopusAccountNumber
+      const userService = new UserService(context.prisma);
+      const user = await userService.createUser(data.body);
+      await env.POP_ACCOUNT_QUEUE.send({
+        user: {
+          id: user.id,
+          octopusApiKey: data.body.octopusApiKey,
+          octopusAccountNumber: user.octopusAccountNumber
         }
       });
 
       return {
         success: true,
         result: {
+          id: user.id,
           email: user.email,
           name: user.name
         }
-      }
-      
+      };
+
     } catch (e) {
       return new Response(JSON.stringify({
         success: false,
-        errors: e.toString()
+        errors: e instanceof Error ? e.message : 'An error occurred'
       }), {
         headers: {
           'content-type': 'application/json'
         },
         status: 400
-      })
+      });
     }
   }
 }
@@ -95,36 +70,23 @@ export class AuthLogin extends OpenAPIRoute {
     responses: {
       '200': {
         description: 'Successful response',
-        schema: {
-          success: Boolean,
-          result: {
-            session: UserSessionDto
-          }
-        }
+        schema: LoginUserResultDto
       },
       '400': {
         description: 'Error',
-        schema: {
-          success: Boolean, 
-          errors: String
-        }
+        schema: ErrorResponseDto
       }
     }
-  }
-  
-  async handle(request: Request, env: Env, context: Context, data: RequestBody<LoginUserDto>) {
-    const user = await context.prisma.user.findUnique({
-      where: {
-        email: data.body.emailAddress
-      },
-      select: {
-        id: true,
-        salt: true,
-        password: true
-      }
-    });
-    
-    if (!user || user.password !== await hashPassword(data.body.password, user.salt)) {
+  };
+
+  async handle(request: Request, env: Env, context: Context, data: RequestData<LoginUserDto>) {
+    if (!data.body) throw new Error('Invalid body');
+    const userService = new UserService(context.prisma);
+    const userSessionService = new UserSessionService(context.prisma);
+    const user = await userService.getUserByEmail(data.body.emailAddress);
+    const passwordValid = await userService.verifyUserPassword(user.id, data.body.password);
+    console.log(passwordValid);
+    if (!passwordValid) {
       return new Response(JSON.stringify({
         success: false,
         errors: 'Invalid password'
@@ -133,67 +95,44 @@ export class AuthLogin extends OpenAPIRoute {
           'content-type': 'application/json'
         },
         status: 400
-      })
+      });
     }
-    
-    let expiration = new Date();
-    expiration.setDate(expiration.getDate() + 7);
-    
-    const session = await context.prisma.usersSession.create({
-      data: {
-        user_id: user.id,
-        token: generateToken(),
-        expires_at: expiration.getTime()
-      }
-    });
-    
+
+    const session = await userSessionService.createUserSession(user.id);
     return {
       success: true,
       result: {
-        session: {
-          token: session.token,
-          expires_at: session.expires_at
-        }
+        session
       }
-    }
+    };
   }
 }
 
 export function getBearer(request: Request): null | string {
   const authHeader = request.headers.get('Authorization');
-  if (!authHeader || authHeader.substring(0, 6) !== 'Bearer ') {
+  if (!authHeader || authHeader.substring(0, 6) !== 'Bearer') {
     return null;
   }
   return authHeader.substring(6).trim();
 }
 
-export async function authenticateUser(request: Request, env: Env, context: Context) {
+export async function authenticateUser(request: Request, env: Env, context: Context, data: unknown) {
+  const userSessionService = new UserSessionService(context.prisma);
   const token = getBearer(request);
-  
-  if (token) {
-    const session = await context.prisma.usersSession.findFirst({
-      where: {
-        token: token,
-        expires_at: {
-          gt: new Date().getTime()
-        }
-      },
-      select: {
-        user_id: true
-      }
-    });
 
+  if (token) {
+    const session = await userSessionService.getUserSession(token);
     if (!token || !session) {
       return new Response(JSON.stringify({
         success: false,
-        errors: "Authentication error"
+        errors: 'Authentication error'
       }), {
         headers: {
           'content-type': 'application/json'
         },
         status: 401
-      })
+      });
     }
-    env.user_uuid = session.user_id;
+    env.user_uuid = session.userId;
   }
 }
