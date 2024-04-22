@@ -27,7 +27,7 @@
     "zone.js": "~0.14.3"
   },
   "devDependencies": {
-    "@angular-devkit/build-angular": "^17.2.3",
+    "@angular-devkit/build-angular": "^17.3.5",
     "@angular/cli": "^17.2.3",
     "@angular/compiler-cli": "^17.2.0",
     "@cloudflare/workers-types": "^4.20240405.0",
